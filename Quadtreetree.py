@@ -21,8 +21,16 @@ def brute_nearest(puntos, x, y):
     return mejor, math.sqrt(mejor_dist2)
 
 def brute_k_nearest(puntos, x, y, k):
-    ordenados = sorted(puntos, key=lambda p: (p[0] - x)**2 + (p[1] - y)**2)
-    return [(p, math.sqrt((p[0] - x)**2 + (p[1] - y)**2)) for p in ordenados[:k]]
+    lista = []
+    for p in puntos:
+        dist2 = (p[0] - x)**2 + (p[1] - y)**2
+        lista.append((dist2, p))
+    lista.sort()                                  # ordena por distancia al cuadrado
+
+    resultado = []
+    for dist2, p in lista[:k]:                    # solo los primeros k
+        resultado.append((p, math.sqrt(dist2)))
+    return resultado
 
 class Rect: 
     def __init__(self, dx, dy, w, h):
@@ -160,13 +168,16 @@ class Quadtree:
             if best is None or dist2 < best[1]:
                 best = [p, dist2]
 
-        # 3. Si tiene hijos, los exploramos recursivamente
+        # 3. Bajo a los hijos, primero los más cercanos
         if self.children is not None:
-            # Ordenamos los hijos por la distancia mínima de su rectángulo a (x, y) [Optimización]
-            hijos_ordenados = sorted(self.children, key=lambda child: child.boundary.min_dist2(x, y))
-            
-            for child in hijos_ordenados:
-                best = child.nearest(x, y, best)
+            lista = []
+            for i in range(4):
+                hijo = self.children[i]
+                d = hijo.boundary.min_dist2(x, y)     # qué tan cerca está su rectángulo
+                lista.append((d, i, hijo))
+            lista.sort()                              # ordena de menor a mayor distancia
+            for d, i, hijo in lista:
+                best = hijo.nearest(x, y, best)
 
         return best
 
@@ -194,8 +205,14 @@ class Quadtree:
 
         # 3. Bajo a los hijos, primero los más cercanos
         if self.children is not None:
-            for child in sorted(self.children, key=lambda c: c.boundary.min_dist2(x, y)):
-                child.k_nearest(x, y, k, best)
+            lista = []
+            for i in range(4):
+                hijo = self.children[i]
+                d = hijo.boundary.min_dist2(x, y)
+                lista.append((d, i, hijo))
+            lista.sort()
+            for d, i, hijo in lista:
+                hijo.k_nearest(x, y, k, best)
 
 
         return best
