@@ -172,6 +172,37 @@ def graficar_k_vecinos(puntos, x, y, vecinos, archivo="k_vecinos.png"):
     fig.savefig(os.path.join(CARPETA, archivo), dpi=150)
     plt.close(fig)
 
+def graficar_comparacion_metodos(puntos, arbol, x, y, r, archivo="comparacion_metodos.png"):
+    de_bruta = brute_radius(puntos, x, y, r)
+    de_arbol = arbol.query_radius(x, y, r)
+    iguales = set(de_bruta) == set(de_arbol)
+
+    nombres = ["Fuerza bruta", "Quadtree"]
+    resultados = [de_bruta, de_arbol]
+
+    fig, ejes = plt.subplots(1, 2, figsize=(14, 7))
+    for i in range(2):
+        ax = ejes[i]
+        x_todos = [p[0] for p in puntos]
+        y_todos = [p[1] for p in puntos]
+        ax.scatter(x_todos, y_todos, s=10, color="lightgray")
+
+        x_enc = [p[0] for p in resultados[i]]
+        y_enc = [p[1] for p in resultados[i]]
+        ax.scatter(x_enc, y_enc, s=25, color="tab:blue")
+
+        ax.add_patch(Circle((x, y), r, fill=False, color="red"))
+        ax.scatter([x], [y], marker="*", s=200, color="red")
+        ax.set_xlim(x - r * 1.5, x + r * 1.5)
+        ax.set_ylim(y - r * 1.5, y + r * 1.5)
+        ax.set_aspect("equal")
+        ax.set_title(f"{nombres[i]}: {len(resultados[i])} puntos encontrados")
+
+    fig.suptitle(f"Mismo radio de {r} m con los dos métodos. ¿Mismos resultados? {iguales}")
+    fig.tight_layout()
+    fig.savefig(os.path.join(CARPETA, archivo), dpi=150)
+    plt.close(fig)
+
 def generar_graficas():
     # Mismos datos y árbol que en las pruebas
     random.seed(42)
@@ -190,13 +221,16 @@ def generar_graficas():
     vecino_punto = mejor[0]
     distancia_m = math.sqrt(mejor[1])
     graficar_vecino(puntos, cx, cy, vecino_punto, distancia_m, "vecino.png")
-
-    print(f"Gráficas guardadas en la carpeta '{CARPETA}/'")
-
+ 
     # Gráfica 3: los 5 vecinos más cercanos
     vecinos = arbol.k_nearest_points(cx, cy, 5)
     graficar_k_vecinos(puntos, cx, cy, vecinos, "k_vecinos.png")
 
+
+    # Gráfica 4: comparación de los dos métodos (fuerza bruta y Quadtree)
+    graficar_comparacion_metodos(puntos, arbol, cx, cy, radio, "comparacion_metodos.png")
+
+    print(f"Gráficas guardadas en la carpeta '{CARPETA}/'")
 
 # ======================================================================
 # EJECUCIÓN

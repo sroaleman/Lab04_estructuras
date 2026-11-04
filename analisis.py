@@ -17,6 +17,7 @@ os.makedirs(CARPETA, exist_ok=True)
 TAMANOS = [50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000]
 CONSULTAS = 200       # consultas aleatorias por tamaño (se promedia)
 REPETICIONES = 3      # cada medición se repite y se toma la mejor (reduce el ruido)
+PASADAS = 3           # repeticiones de cada experimento
 RADIO = 500           # metros
 CAPACIDAD = 4         # puntos por nodo antes de subdividir
 LADO = 10000          # la ciudad mide LADO x LADO metros
@@ -149,20 +150,32 @@ def graficar_construccion(resultados, archivo="analisis_construccion.png"):
 # EXPERIMENTO EXTRA: capacidad del nodo
 # ======================================================================
 def experimento_capacidad(n=10000, capacidades=(2, 4, 8, 16, 32)):
+    claves = ["construccion", "radio_arbol", "vecino_arbol"]
+    mejores = []
+    for c in capacidades:
+        mejores.append({"construccion": None, "radio_arbol": None, "vecino_arbol": None})
+
+    # Repito TODO el barrido varias veces y me quedo con el mejor valor de cada capacidad
+    for pasada in range(PASADAS):
+        print(f"Capacidad: pasada {pasada + 1} de {PASADAS}")
+        for i in range(len(capacidades)):
+            r = medir(n, capacidad=capacidades[i])
+            for clave in claves:
+                if mejores[i][clave] is None or r[clave] < mejores[i][clave]:
+                    mejores[i][clave] = r[clave]
+
     print(f"\nEfecto de la capacidad del nodo (N = {n})")
     print(f"{'Capacidad':>9} | {'Constr(ms)':>10} | {'Radio árbol(µs)':>15} | {'Vec. árbol(µs)':>14}")
     print("-" * 58)
-    filas = []
-    for c in capacidades:
-        r = medir(n, capacidad=c)
-        filas.append((c, r))
-        print(f"{c:>9} | {r['construccion'] * 1000:>10.2f} | {r['radio_arbol'] * 1e6:>15.1f} |"
-              f" {r['vecino_arbol'] * 1e6:>14.1f}")
+    for i in range(len(capacidades)):
+        m = mejores[i]
+        print(f"{capacidades[i]:>9} | {m['construccion'] * 1000:>10.2f} | "
+              f"{m['radio_arbol'] * 1e6:>15.1f} | {m['vecino_arbol'] * 1e6:>14.1f}")
 
     fig, ax = plt.subplots(figsize=(8, 6))
-    ax.plot([c for c, _ in filas], [r["radio_arbol"] * 1e6 for _, r in filas],
+    ax.plot(list(capacidades), [m["radio_arbol"] * 1e6 for m in mejores],
             marker="o", label="Radio")
-    ax.plot([c for c, _ in filas], [r["vecino_arbol"] * 1e6 for _, r in filas],
+    ax.plot(list(capacidades), [m["vecino_arbol"] * 1e6 for m in mejores],
             marker="o", label="Vecino más cercano")
     ax.set_xscale("log", base=2)
     ax.set_xlabel("Capacidad del nodo")
@@ -172,7 +185,7 @@ def experimento_capacidad(n=10000, capacidades=(2, 4, 8, 16, 32)):
     ax.legend()
     fig.savefig(os.path.join(CARPETA, "analisis_capacidad.png"), dpi=150)
     plt.close(fig)
-
+    
 # ======================================================================
 # EXPERIMENTO: k VECINOS MÁS CERCANOS
 # ======================================================================
@@ -195,20 +208,26 @@ def medir_k(n, k):
 
 def experimento_k():
     # --- Parte 1: tiempo contra N, con k fijo ---
+    brutas = [None] * len(TAMANOS)
+    arboles = [None] * len(TAMANOS)
+    for pasada in range(PASADAS):
+        print(f"k = {K}: pasada {pasada + 1} de {PASADAS}")
+        for i in range(len(TAMANOS)):
+            t_b, t_a = medir_k(TAMANOS[i], K)
+            if brutas[i] is None or t_b < brutas[i]:
+                brutas[i] = t_b
+            if arboles[i] is None or t_a < arboles[i]:
+                arboles[i] = t_a
+
     print(f"\nk = {K} vecinos más cercanos: tiempo por consulta (µs)")
     print(f"{'N':>7} | {'Fuerza bruta':>12} | {'Quadtree':>10}")
     print("-" * 36)
-    ns, brutas, arboles = [], [], []
-    for n in TAMANOS:
-        t_b, t_a = medir_k(n, K)
-        ns.append(n)
-        brutas.append(t_b * 1e6)
-        arboles.append(t_a * 1e6)
-        print(f"{n:>7} | {t_b * 1e6:>12.1f} | {t_a * 1e6:>10.1f}")
+    for i in range(len(TAMANOS)):
+        print(f"{TAMANOS[i]:>7} | {brutas[i] * 1e6:>12.1f} | {arboles[i] * 1e6:>10.1f}")
 
     fig, ax = plt.subplots(figsize=(8, 6))
-    ax.plot(ns, brutas, marker="o", color="tab:red", label="Fuerza bruta")
-    ax.plot(ns, arboles, marker="o", color="tab:blue", label="Quadtree")
+    ax.plot(TAMANOS, [t * 1e6 for t in brutas], marker="o", color="tab:red", label="Fuerza bruta")
+    ax.plot(TAMANOS, [t * 1e6 for t in arboles], marker="o", color="tab:blue", label="Quadtree")
     ax.set_xscale("log")
     ax.set_yscale("log")
     ax.set_xlabel("Número de puntos (N)")
@@ -222,19 +241,26 @@ def experimento_k():
     # --- Parte 2: tiempo contra k, con N fijo ---
     n = 10000
     ks = [1, 5, 10, 25, 50, 100]
+    brutas_k = [None] * len(ks)
+    arboles_k = [None] * len(ks)
+    for pasada in range(PASADAS):
+        print(f"Efecto de k: pasada {pasada + 1} de {PASADAS}")
+        for i in range(len(ks)):
+            t_b, t_a = medir_k(n, ks[i])
+            if brutas_k[i] is None or t_b < brutas_k[i]:
+                brutas_k[i] = t_b
+            if arboles_k[i] is None or t_a < arboles_k[i]:
+                arboles_k[i] = t_a
+
     print(f"\nEfecto de k (N = {n}): tiempo por consulta (µs)")
     print(f"{'k':>5} | {'Fuerza bruta':>12} | {'Quadtree':>10}")
     print("-" * 34)
-    brutas_k, arboles_k = [], []
-    for k in ks:
-        t_b, t_a = medir_k(n, k)
-        brutas_k.append(t_b * 1e6)
-        arboles_k.append(t_a * 1e6)
-        print(f"{k:>5} | {t_b * 1e6:>12.1f} | {t_a * 1e6:>10.1f}")
+    for i in range(len(ks)):
+        print(f"{ks[i]:>5} | {brutas_k[i] * 1e6:>12.1f} | {arboles_k[i] * 1e6:>10.1f}")
 
     fig, ax = plt.subplots(figsize=(8, 6))
-    ax.plot(ks, brutas_k, marker="o", color="tab:red", label="Fuerza bruta")
-    ax.plot(ks, arboles_k, marker="o", color="tab:blue", label="Quadtree")
+    ax.plot(ks, [t * 1e6 for t in brutas_k], marker="o", color="tab:red", label="Fuerza bruta")
+    ax.plot(ks, [t * 1e6 for t in arboles_k], marker="o", color="tab:blue", label="Quadtree")
     ax.set_xscale("log")
     ax.set_yscale("log")
     ax.set_xlabel("k (cantidad de vecinos)")
@@ -245,14 +271,50 @@ def experimento_k():
     fig.savefig(os.path.join(CARPETA, "analisis_k_valor.png"), dpi=150)
     plt.close(fig)
 
+def graficar_ventaja(resultados, archivo="analisis_ventaja.png"):
+    ns = [r["n"] for r in resultados]
+    ventaja_radio = [r["radio_bruta"] / r["radio_arbol"] for r in resultados]
+    ventaja_vecino = [r["vecino_bruta"] / r["vecino_arbol"] for r in resultados]
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+    ax.plot(ns, ventaja_radio, marker="o", color="tab:blue", label="Radio")
+    ax.plot(ns, ventaja_vecino, marker="o", color="tab:orange", label="Vecino más cercano")
+    ax.axhline(1, color="red", linestyle="--", label="Empate (1 = igual de rápidos)")
+    ax.set_xscale("log")
+    ax.set_yscale("log")
+    ax.set_xlabel("Número de puntos (N)")
+    ax.set_ylabel("Veces más rápido el Quadtree")
+    ax.set_title("Ventaja del Quadtree sobre la fuerza bruta")
+    ax.grid(True, which="both", alpha=0.3)
+    ax.legend()
+    fig.savefig(os.path.join(CARPETA, archivo), dpi=150)
+    plt.close(fig)
+
 # ======================================================================
 # PROGRAMA PRINCIPAL
 # ======================================================================
 def main():
+    todas = []
+    for pasada in range(PASADAS):
+        print(f"Pasada {pasada + 1} de {PASADAS}")
+        corrida = []
+        for n in TAMANOS:
+            corrida.append(medir(n))
+        todas.append(corrida)
+
+    # Para cada N y cada medida, me quedo con el mejor valor de las pasadas
+    claves = ["construccion", "radio_bruta", "radio_arbol", "vecino_bruta", "vecino_arbol"]
     resultados = []
-    for n in TAMANOS:
-        print(f"Midiendo N = {n} ...")
-        resultados.append(medir(n))
+    for i in range(len(TAMANOS)):
+        fila = {"n": TAMANOS[i]}
+        for clave in claves:
+            mejor = None
+            for corrida in todas:
+                valor = corrida[i][clave]
+                if mejor is None or valor < mejor:
+                    mejor = valor
+            fila[clave] = mejor
+        resultados.append(fila)
 
     imprimir_tabla(resultados)
 
@@ -263,6 +325,7 @@ def main():
                          "Vecino más cercano: fuerza bruta vs. Quadtree",
                          "analisis_vecino.png")
     graficar_construccion(resultados)
+    graficar_ventaja(resultados)
 
     print("\n--- PUNTO DE CRUCE ---")
     for nombre, kb, ka in [("Radio", "radio_bruta", "radio_arbol"),
