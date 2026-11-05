@@ -14,7 +14,6 @@ parte de este readme, la elaboracion del codigo de las graficas test y analisis 
 | [test.py](./test.py) | Seis pruebas unitarias y generación de gráficas de verificación. |
 | [analisis.py](./analisis.py) | Mediciones de rendimiento, experimentos de capacidad y k vecinos. |
 | [graficas/](./graficas/) | Gráficas generadas por las pruebas y el análisis. |
-| [apuntes/](./apuntes/) | Material de apoyo; contiene [apuntes.pdf](./apuntes/apuntes.pdf). |
 
 ## Requisitos y ejecución
 
